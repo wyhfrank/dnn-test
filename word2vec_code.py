@@ -49,7 +49,7 @@ def maybe_download(filename, expected_bytes):
 
 # filename = maybe_download('text8.zip', 31344016)
 
-filename = './data/token-vocabulary/sample-tokens-vocab.txt'
+filename = './data/token-vocabulary/small-tokens-vocab.txt'
 
 # Read the data into a list of strings.
 def read_data(filename):
@@ -62,7 +62,7 @@ vocabulary = read_data(filename)
 print('Data size', len(vocabulary))
 
 # Step 2: Build the dictionary and replace rare words with UNK token.
-vocabulary_size = 50000
+vocabulary_size = 70
 
 
 def build_dataset(words, n_words):
@@ -137,7 +137,7 @@ num_skips = 2         # How many times to reuse an input to generate a label.
 # validation samples to the words that have a low numeric ID, which by
 # construction are also the most frequent.
 valid_size = 16     # Random set of words to evaluate similarity on.
-valid_window = 100  # Only pick dev samples in the head of the distribution.
+valid_window = 50  # Only pick dev samples in the head of the distribution.
 valid_examples = np.random.choice(valid_window, valid_size, replace=False)
 num_sampled = 64    # Number of negative examples to sample.
 
@@ -252,7 +252,7 @@ try:
   import matplotlib.pyplot as plt
 
   tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
-  plot_only = 500
+  plot_only = min(500, vocabulary_size)
   low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
   labels = [reverse_dictionary[i] for i in xrange(plot_only)]
   plot_with_labels(low_dim_embs, labels)
