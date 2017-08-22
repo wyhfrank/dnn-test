@@ -22,6 +22,7 @@ import collections
 import math
 import os
 import random
+import csv
 import zipfile
 
 import numpy as np
@@ -32,6 +33,9 @@ import tensorflow as tf
 # Step 1: Download the data.
 url = 'http://mattmahoney.net/dc/'
 data_folder = 'data'
+model_ckpt = './out/model.ckpt'
+count_of_words_file = './out/count.csv'
+token_index_file = './out/token_index.csv'
 
 def maybe_download(filename, expected_bytes):
   """Download a file if not present, and make sure it's the right size."""
@@ -49,7 +53,8 @@ def maybe_download(filename, expected_bytes):
 
 # filename = maybe_download('text8.zip', 31344016)
 
-filename = './data/token-vocabulary/small-tokens-vocab.txt'
+filename = './data/token-vocabulary/sample-tokens-vocab.txt'
+# filename = './data/token-vocabulary/small-tokens-vocab.txt'
 
 # Read the data into a list of strings.
 def read_data(filename):
@@ -62,7 +67,7 @@ vocabulary = read_data(filename)
 print('Data size', len(vocabulary))
 
 # Step 2: Build the dictionary and replace rare words with UNK token.
-vocabulary_size = 70
+vocabulary_size = 120
 
 
 def build_dataset(words, n_words):
@@ -90,6 +95,16 @@ data, count, dictionary, reverse_dictionary = build_dataset(vocabulary,
 del vocabulary  # Hint to reduce memory.
 print('Most common words (+UNK)', count[:5])
 print('Sample data', data[:10], [reverse_dictionary[i] for i in data[:10]])
+
+with open(token_index_file, 'w') as f:
+  writer = csv.writer(f)
+  for key, val in reverse_dictionary.items():
+      writer.writerow([key, val])
+
+with open(count_of_words_file, 'w') as f:
+  writer = csv.writer(f)
+  for row in count:
+    writer.writerow(row)
 
 data_index = 0
 
@@ -136,8 +151,8 @@ num_skips = 2         # How many times to reuse an input to generate a label.
 # We pick a random validation set to sample nearest neighbors. Here we limit the
 # validation samples to the words that have a low numeric ID, which by
 # construction are also the most frequent.
-valid_size = 16     # Random set of words to evaluate similarity on.
-valid_window = 50  # Only pick dev samples in the head of the distribution.
+valid_size = 100     # Random set of words to evaluate similarity on.
+valid_window = 120  # Only pick dev samples in the head of the distribution.
 valid_examples = np.random.choice(valid_window, valid_size, replace=False)
 num_sampled = 64    # Number of negative examples to sample.
 
@@ -191,6 +206,8 @@ with graph.as_default():
 # Step 5: Begin training.
 num_steps = 100001
 
+saver = tf.train.Saver({"embeddings": embeddings})
+
 with tf.Session(graph=graph) as session:
   # We must initialize all variables before we use them.
   init.run()
@@ -226,6 +243,8 @@ with tf.Session(graph=graph) as session:
           close_word = reverse_dictionary[nearest[k]]
           log_str = '%s %s,' % (log_str, close_word)
         print(log_str)
+      saved_path = saver.save(session, model_ckpt)
+      print("Model saved in file: %s" % saved_path)
   final_embeddings = normalized_embeddings.eval()
 
 # Step 6: Visualize the embeddings.
