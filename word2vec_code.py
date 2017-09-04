@@ -55,8 +55,15 @@ def maybe_download(filename, expected_bytes):
 
 # filename = maybe_download('text8.zip', 31344016)
 
-data_setting = "small"
-# data_setting = "sample"
+
+batch_size = 128
+embedding_size = 30  # Dimension of the embedding vector.
+skip_window = 1       # How many words to consider left and right.
+num_skips = 2         # How many times to reuse an input to generate a label.
+
+
+# data_setting = "small"
+data_setting = "sample"
 
 if (data_setting == "small"):
   filename = './data/token-vocabulary/small-tokens-vocab.txt'
@@ -156,11 +163,6 @@ for i in range(8):
         '->', labels[i, 0], reverse_dictionary[labels[i, 0]])
 
 # Step 4: Build and train a skip-gram model.
-
-batch_size = 128
-embedding_size = 128  # Dimension of the embedding vector.
-skip_window = 1       # How many words to consider left and right.
-num_skips = 2         # How many times to reuse an input to generate a label.
 
 # We pick a random validation set to sample nearest neighbors. Here we limit the
 # validation samples to the words that have a low numeric ID, which by
@@ -286,7 +288,8 @@ try:
   plot_only = min(500, vocabulary_size)
   low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
   labels = [reverse_dictionary[i] for i in xrange(plot_only)]
-  plot_with_labels(low_dim_embs, labels)
+  plot_with_labels(low_dim_embs, labels, 'word2vec-{0}-vocab {1}-feature {2}.png'
+                     .format(data_setting, vocabulary_size, embedding_size))
 
 except ImportError:
   print('Please install sklearn, matplotlib, and scipy to show embeddings.')
