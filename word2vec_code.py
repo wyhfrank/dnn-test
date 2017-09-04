@@ -57,7 +57,7 @@ def maybe_download(filename, expected_bytes):
 
 
 batch_size = 128
-embedding_size = 30  # Dimension of the embedding vector.
+embedding_size = 8  # Dimension of the embedding vector.
 skip_window = 1       # How many words to consider left and right.
 num_skips = 2         # How many times to reuse an input to generate a label.
 
@@ -70,13 +70,13 @@ if (data_setting == "small"):
   # Step 2: Build the dictionary and replace rare words with UNK token.
   vocabulary_size = 70
   valid_size = 60  # Random set of words to evaluate similarity on.
-  valid_window = 60  # Only pick dev samples in the head of the distribution.
+  valid_window = vocabulary_size  # Only pick dev samples in the head of the distribution.
 elif (data_setting == "sample"):
-    filename = './data/token-vocabulary/sample-tokens-vocab.txt'
+    filename = './data/token-vocabulary/sample-tokens-vocab-filtered.txt'
     # Step 2: Build the dictionary and replace rare words with UNK token.
-    vocabulary_size = 120
+    vocabulary_size = 107
     valid_size = 100     # Random set of words to evaluate similarity on.
-    valid_window = 120  # Only pick dev samples in the head of the distribution.
+    valid_window = vocabulary_size  # Only pick dev samples in the head of the distribution.
 
 
 # Read the data into a list of strings.
