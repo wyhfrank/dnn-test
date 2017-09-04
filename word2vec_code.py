@@ -29,6 +29,8 @@ import numpy as np
 from six.moves import urllib
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
+# from sklearn.manifold import TSNE
+# import matplotlib.pyplot as plt
 
 # Step 1: Download the data.
 url = 'http://mattmahoney.net/dc/'
@@ -53,8 +55,22 @@ def maybe_download(filename, expected_bytes):
 
 # filename = maybe_download('text8.zip', 31344016)
 
-filename = './data/token-vocabulary/sample-tokens-vocab.txt'
-# filename = './data/token-vocabulary/small-tokens-vocab.txt'
+data_setting = "small"
+# data_setting = "sample"
+
+if (data_setting == "small"):
+  filename = './data/token-vocabulary/small-tokens-vocab.txt'
+  # Step 2: Build the dictionary and replace rare words with UNK token.
+  vocabulary_size = 70
+  valid_size = 60  # Random set of words to evaluate similarity on.
+  valid_window = 60  # Only pick dev samples in the head of the distribution.
+elif (data_setting == "sample"):
+    filename = './data/token-vocabulary/sample-tokens-vocab.txt'
+    # Step 2: Build the dictionary and replace rare words with UNK token.
+    vocabulary_size = 120
+    valid_size = 100     # Random set of words to evaluate similarity on.
+    valid_window = 120  # Only pick dev samples in the head of the distribution.
+
 
 # Read the data into a list of strings.
 def read_data(filename):
@@ -66,8 +82,6 @@ def read_data(filename):
 vocabulary = read_data(filename)
 print('Data size', len(vocabulary))
 
-# Step 2: Build the dictionary and replace rare words with UNK token.
-vocabulary_size = 120
 
 
 def build_dataset(words, n_words):
@@ -151,8 +165,6 @@ num_skips = 2         # How many times to reuse an input to generate a label.
 # We pick a random validation set to sample nearest neighbors. Here we limit the
 # validation samples to the words that have a low numeric ID, which by
 # construction are also the most frequent.
-valid_size = 100     # Random set of words to evaluate similarity on.
-valid_window = 120  # Only pick dev samples in the head of the distribution.
 valid_examples = np.random.choice(valid_window, valid_size, replace=False)
 num_sampled = 64    # Number of negative examples to sample.
 
