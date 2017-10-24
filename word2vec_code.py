@@ -18,6 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import argparse
 import collections
 import math
 import os
@@ -33,52 +34,57 @@ import tensorflow as tf
 # from sklearn.manifold import TSNE
 # import matplotlib.pyplot as plt
 
-# Step 1: Download the data.
-url = 'http://mattmahoney.net/dc/'
-data_folder = 'data'
-model_ckpt = './out/model.ckpt'
-count_of_words_file = './out/count.csv'
-token_index_file = './out/token_index.csv'
+
+argparse = argparse.ArgumentParser(description="Create vector embedding for source code tokens.")
+
+argparse.add_argument("--name", type=str, default="none", help="Name for this run.")
+argparse.add_argument("--output_dir", type=str, default="output/")
+argparse.add_argument("--train_file", type=str, default="./data/token-vocabulary/small-tokens.txt")
+argparse.add_argument("--batch_size", type=int, default=128)
+argparse.add_argument("--embedding_size", type=int, default=8, help="Dimension of the embedding vector.")
+argparse.add_argument("--skip_window", type=int, default=1, help="How many words to consider left and right.")
+argparse.add_argument("--num_skips", type=int, default=2, help="How many times to reuse an input to generate a label.")
+argparse.add_argument("--vocabulary_size", type=int, default=100, help="Size of the vocabulary.")
+argparse.add_argument("--valid_size", type=int, default=50, help="Random set of words to evaluate similarity on.")
+
+config = argparse.parse_args()
 
 
-def maybe_download(filename, expected_bytes):
-    """Download a file if not present, and make sure it's the right size."""
-    filepath = os.path.join(data_folder, filename)
-    if not os.path.exists(filepath):
-        filepath, _ = urllib.request.urlretrieve(url + filename, filepath)
-    statinfo = os.stat(filepath)
-    if statinfo.st_size == expected_bytes:
-        print('Found and verified', filepath)
-    else:
-        print(statinfo.st_size)
-        raise Exception(
-            'Failed to verify ' + filepath + '. Can you get to it with a browser?')
-    return filepath
+batch_size = config.batch_size
+embedding_size = config.embedding_size
+skip_window = config.skip_window
+num_skips = config.num_skips
+vocabulary_size = config.vocabulary_size
+valid_size = config.valid_size
+valid_window = vocabulary_size
+train_file = config.train_file
 
+path_of_config = "{}.dim-{}.vocab-{}.sw-{}.ns-{}".format(config.name, embedding_size, vocabulary_size, skip_window, num_skips)
+output_dir = os.path.join(config.output_dir, path_of_config)
 
-# filename = maybe_download('text8.zip', 31344016)
+token_index_file = os.path.join(output_dir, "token_index.csv")
+count_of_words_file = os.path.join(output_dir, "count.csv")
+ckpt_save_dir = os.path.join(output_dir, "ckpt")
+ckpt_save_path = os.path.join(ckpt_save_dir, "ckpt")
 
-
-batch_size = 128
-embedding_size = 8  # Dimension of the embedding vector.
-skip_window = 1  # How many words to consider left and right.
-num_skips = 2  # How many times to reuse an input to generate a label.
+if not os.path.exists(ckpt_save_dir):
+    os.makedirs(ckpt_save_dir)
 
 # data_setting = "small"
-data_setting = "sample"
-
-if (data_setting == "small"):
-    filename = './data/token-vocabulary/small-tokens-vocab.txt'
-    # Step 2: Build the dictionary and replace rare words with UNK token.
-    vocabulary_size = 70
-    valid_size = 60  # Random set of words to evaluate similarity on.
-    valid_window = vocabulary_size  # Only pick dev samples in the head of the distribution.
-elif (data_setting == "sample"):
-    filename = './data/token-vocabulary/sample-tokens-vocab-filtered.txt'
-    # Step 2: Build the dictionary and replace rare words with UNK token.
-    vocabulary_size = 107
-    valid_size = 100  # Random set of words to evaluate similarity on.
-    valid_window = vocabulary_size  # Only pick dev samples in the head of the distribution.
+# data_setting = "sample"
+#
+# if (data_setting == "small"):
+#     filename = './data/token-vocabulary/small-tokens-vocab.txt'
+#     # Step 2: Build the dictionary and replace rare words with UNK token.
+#     vocabulary_size = 70
+#     valid_size = 60  # Random set of words to evaluate similarity on.
+#     valid_window = vocabulary_size  # Only pick dev samples in the head of the distribution.
+# elif (data_setting == "sample"):
+#     filename = './data/token-vocabulary/sample-tokens-vocab-filtered.txt'
+#     # Step 2: Build the dictionary and replace rare words with UNK token.
+#     vocabulary_size = 107
+#     valid_size = 100  # Random set of words to evaluate similarity on.
+#     valid_window = vocabulary_size  # Only pick dev samples in the head of the distribution.
 
 
 # Read the data into a list of strings.
@@ -89,7 +95,7 @@ def read_data(filename):
     return data
 
 
-vocabulary = read_data(filename)
+vocabulary = read_data(train_file)
 print('Data size', len(vocabulary))
 
 
@@ -260,7 +266,7 @@ with tf.Session(graph=graph) as session:
                     close_word = reverse_dictionary[nearest[k]]
                     log_str = '%s %s,' % (log_str, close_word)
                 print(log_str)
-            saved_path = saver.save(session, model_ckpt)
+            saved_path = saver.save(session, ckpt_save_path)
             print("Model saved in file: %s" % saved_path)
     final_embeddings = normalized_embeddings.eval()
 
@@ -293,8 +299,7 @@ try:
     plot_only = min(500, vocabulary_size)
     low_dim_embs = tsne.fit_transform(final_embeddings[:plot_only, :])
     labels = [reverse_dictionary[i] for i in xrange(plot_only)]
-    plot_with_labels(low_dim_embs, labels, 'word2vec-{0}-vocab {1}-feature {2}.png'
-                     .format(data_setting, vocabulary_size, embedding_size))
+    plot_with_labels(low_dim_embs, labels, os.path.join(output_dir, 'tsne.png'))
 
 except ImportError:
     print('Please install sklearn, matplotlib, and scipy to show embeddings.')
