@@ -37,9 +37,10 @@ import tensorflow as tf
 
 argparse = argparse.ArgumentParser(description="Create vector embedding for source code tokens.")
 
-argparse.add_argument("--name", type=str, default="none", help="Name for this run.")
+argparse.add_argument("--name", type=str, default="default", help="Name for this run.")
 argparse.add_argument("--output_dir", type=str, default="output/")
-argparse.add_argument("--train_file", type=str, default="./data/token-vocabulary/small-tokens.txt")
+argparse.add_argument("--train_file", type=str, default="./data/token-vocabulary/small-tokens-vocab.txt")
+argparse.add_argument("--num_steps", type=int, default=100001, help="Number of training steps.")
 argparse.add_argument("--batch_size", type=int, default=128)
 argparse.add_argument("--embedding_size", type=int, default=8, help="Dimension of the embedding vector.")
 argparse.add_argument("--skip_window", type=int, default=1, help="How many words to consider left and right.")
@@ -58,12 +59,14 @@ vocabulary_size = config.vocabulary_size
 valid_size = config.valid_size
 valid_window = vocabulary_size
 train_file = config.train_file
+num_steps = config.num_steps
 
 path_of_config = "{}.dim-{}.vocab-{}.sw-{}.ns-{}".format(config.name, embedding_size, vocabulary_size, skip_window, num_skips)
 output_dir = os.path.join(config.output_dir, path_of_config)
 
 token_index_file = os.path.join(output_dir, "token_index.csv")
 count_of_words_file = os.path.join(output_dir, "count.csv")
+token_embeddings_file = os.path.join(output_dir, "embeddings.txt")
 ckpt_save_dir = os.path.join(output_dir, "ckpt")
 ckpt_save_path = os.path.join(ckpt_save_dir, "ckpt")
 
@@ -227,7 +230,6 @@ with graph.as_default():
     init = tf.global_variables_initializer()
 
 # Step 5: Begin training.
-num_steps = 100001
 
 saver = tf.train.Saver({"embeddings": embeddings})
 
@@ -303,3 +305,17 @@ try:
 
 except ImportError:
     print('Please install sklearn, matplotlib, and scipy to show embeddings.')
+
+
+# Save embeddings
+
+def save_embeddings(embeddings, labels):
+    with open(token_embeddings_file, "w") as f:
+        for i, label in enumerate(labels):
+            vec = embeddings[i, :]
+            str_vec = map(str, vec)
+            # print("{label} {embeddings}".format(label=label, embeddings=" ".join(str_vec)))
+            f.write("{label} {embeddings}\n".format(label=label, embeddings=" ".join(str_vec)))
+
+labels = reverse_dictionary.values()
+save_embeddings(final_embeddings, labels)
