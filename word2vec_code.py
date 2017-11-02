@@ -50,6 +50,7 @@ class Word2Vec():
         """Process raw inputs into a dataset."""
         count = [['UNK', -1]]
         count.extend(collections.Counter(words).most_common(n_words - 1))
+        vocab_size = len(count)
         dictionary = dict()
         for word, _ in count:
             dictionary[word] = len(dictionary)
@@ -64,7 +65,7 @@ class Word2Vec():
             data.append(index)
         count[0][1] = unk_count
         reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
-        return data, count, dictionary, reversed_dictionary
+        return data, count, dictionary, reversed_dictionary, vocab_size
 
     def save_token_and_count(self, count, reverse_dictionary):
         token_index_file = self.config.token_index_file
@@ -134,7 +135,8 @@ class Word2Vec():
         except ImportError:
             print('Please install sklearn, matplotlib, and scipy to show embeddings.')
 
-    def save_embeddings(self, file, embeddings, labels):
+    def save_embeddings(self, file, embeddings, reverse_dictionary):
+        labels = reverse_dictionary.values()
         with open(file, "w") as f:
             for i, label in enumerate(labels):
                 vec = embeddings[i, :]
@@ -267,8 +269,15 @@ class Word2Vec():
         vocabulary = self.read_data()
         print('Data size', len(vocabulary))
 
-        data, count, dictionary, reverse_dictionary = self.build_dataset(vocabulary,
-                                                                         vocabulary_size)
+        data, count, dictionary, reverse_dictionary, correct_vocab_size = self.build_dataset(vocabulary,
+                                                                                             vocabulary_size)
+
+        if correct_vocab_size < vocabulary_size:
+            print("Real vocabulary size is {real_vocab}, "
+                  "while the config is {conf_vocab}. "
+                  "Setting it to {real_vocab}.".format(real_vocab=correct_vocab_size, conf_vocab=vocabulary_size))
+            self.config.vocabulary_size = correct_vocab_size
+
         del vocabulary  # Hint to reduce memory.
         print('Most common words (+UNK)', count[:5])
         print('Sample data', data[:10], [reverse_dictionary[i] for i in data[:10]])
@@ -281,13 +290,22 @@ class Word2Vec():
 
         self.plot_with_labels(final_embeddings, reverse_dictionary, os.path.join(config.output_path, 'tsne.png'))
 
-        labels = reverse_dictionary.values()
-        self.save_embeddings(token_embeddings_file, final_embeddings, labels)
+        self.save_embeddings(token_embeddings_file, final_embeddings, reverse_dictionary)
+
+    def test_vocab_size(self):
+        all_words = self.read_data()
+        c = collections.Counter(all_words)
+        vocab_size = str(len(c) + 1) # the +1 is for UNK
+        print("The size of the vocabulary is: {}.".format(vocab_size))
 
 
 def main():
     argparser = argparse.ArgumentParser(description="Create vector embedding for source code tokens.")
 
+    argparser.add_argument("mode", type=str, choices=["train", "vocab"],
+                           help=("One of {train|vocab}, to "
+                                 "indicate what you want the model to do. "
+                                 "vocab: get the correct vocabulary size of the corpora."))
     argparser.add_argument("--name", type=str, default="default", help="Name for this run.")
     argparser.add_argument("--output_dir", type=str, default="output/")
     argparser.add_argument("--train_file", type=str, default="./data/token-vocabulary/small-tokens-vocab.txt")
@@ -338,7 +356,11 @@ def main():
     #     valid_window = vocabulary_size  # Only pick dev samples in the head of the distribution.
 
     w = Word2Vec(config)
-    w.train_data()
+
+    if config.mode == "train":
+        w.train_data()
+    else:
+        w.test_vocab_size()
 
 
 if __name__ == '__main__':
