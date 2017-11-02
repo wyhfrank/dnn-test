@@ -66,6 +66,19 @@ class Word2Vec():
         reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
         return data, count, dictionary, reversed_dictionary
 
+    def save_token_and_count(self, count, reverse_dictionary):
+        token_index_file = self.config.token_index_file
+        count_of_words_file = self.config.count_of_words_file
+
+        with open(token_index_file, 'w') as f:
+            writer = csv.writer(f)
+            for key, val in reverse_dictionary.items():
+                writer.writerow([key, val])
+        with open(count_of_words_file, 'w') as f:
+            writer = csv.writer(f)
+            for row in count:
+                writer.writerow(row)
+
     # Step 3: Function to generate a training batch for the skip-gram model.
     def generate_batch(self, data, batch_size, num_skips, skip_window):
         assert batch_size % num_skips == 0
@@ -129,7 +142,7 @@ class Word2Vec():
                 # print("{label} {embeddings}".format(label=label, embeddings=" ".join(str_vec)))
                 f.write("{label} {embeddings}\n".format(label=label, embeddings=" ".join(str_vec)))
 
-    def train_data(self):
+    def build_and_run_model(self, data, reverse_dictionary):
         config = self.config
 
         batch_size = config.batch_size
@@ -140,45 +153,15 @@ class Word2Vec():
         valid_size = config.valid_size
         valid_window = vocabulary_size
         num_steps = config.num_steps
-        token_index_file = config.token_index_file
-        count_of_words_file = config.count_of_words_file
-        token_embeddings_file = config.token_embeddings_file
         ckpt_save_path = config.ckpt_save_path
 
-        vocabulary = self.read_data()
-        print('Data size', len(vocabulary))
-
-        data, count, dictionary, reverse_dictionary = self.build_dataset(vocabulary,
-                                                                         vocabulary_size)
-        del vocabulary  # Hint to reduce memory.
-        print('Most common words (+UNK)', count[:5])
-        print('Sample data', data[:10], [reverse_dictionary[i] for i in data[:10]])
-
-        with open(token_index_file, 'w') as f:
-            writer = csv.writer(f)
-            for key, val in reverse_dictionary.items():
-                writer.writerow([key, val])
-
-        with open(count_of_words_file, 'w') as f:
-            writer = csv.writer(f)
-            for row in count:
-                writer.writerow(row)
-
-        batch, labels = self.generate_batch(data, batch_size=8, num_skips=2, skip_window=1)
-        for i in range(8):
-            print(batch[i], reverse_dictionary[batch[i]],
-                  '->', labels[i, 0], reverse_dictionary[labels[i, 0]])
-
         # Step 4: Build and train a skip-gram model.
-
         # We pick a random validation set to sample nearest neighbors. Here we limit the
         # validation samples to the words that have a low numeric ID, which by
         # construction are also the most frequent.
         valid_examples = np.random.choice(valid_window, valid_size, replace=False)
         num_sampled = 64  # Number of negative examples to sample.
-
         graph = tf.Graph()
-
         with graph.as_default():
             # Input data.
             train_inputs = tf.placeholder(tf.int32, shape=[batch_size])
@@ -224,9 +207,7 @@ class Word2Vec():
             init = tf.global_variables_initializer()
 
         # Step 5: Begin training.
-
         saver = tf.train.Saver({"embeddings": embeddings})
-
         with tf.Session(graph=graph) as session:
             # We must initialize all variables before we use them.
             init.run()
@@ -252,20 +233,51 @@ class Word2Vec():
 
                 # Note that this is expensive (~20% slowdown if computed every 500 steps)
                 if step % 10000 == 0:
-                    sim = similarity.eval()
-                    for i in xrange(valid_size):
-                        valid_word = reverse_dictionary[valid_examples[i]]
-                        top_k = 8  # number of nearest neighbors
-                        nearest = (-sim[i, :]).argsort()[1:top_k + 1]
-                        log_str = 'Nearest to %s:' % valid_word
-                        for k in xrange(top_k):
-                            close_word = reverse_dictionary[nearest[k]]
-                            log_str = '%s %s,' % (log_str, close_word)
-                        print(log_str)
+                    self.print_sample_similarity(reverse_dictionary, similarity, valid_examples, valid_size)
                     saved_path = saver.save(session, ckpt_save_path)
                     print("Model saved in file: %s" % saved_path)
 
             final_embeddings = normalized_embeddings.eval()
+        return final_embeddings
+
+    def print_sample_similarity(self, reverse_dictionary, similarity, valid_examples, valid_size):
+        # return
+        sim = similarity.eval()
+        for i in xrange(valid_size):
+            valid_word = reverse_dictionary[valid_examples[i]]
+            top_k = 8  # number of nearest neighbors
+            nearest = (-sim[i, :]).argsort()[1:top_k + 1]
+            log_str = 'Nearest to %s:' % valid_word
+            for k in xrange(top_k):
+                close_word = reverse_dictionary[nearest[k]]
+                log_str = '%s %s,' % (log_str, close_word)
+            print(log_str)
+
+    def test_batch(self, data, reverse_dictionary):
+        batch, labels = self.generate_batch(data, batch_size=8, num_skips=2, skip_window=1)
+        for i in range(8):
+            print(batch[i], reverse_dictionary[batch[i]],
+                  '->', labels[i, 0], reverse_dictionary[labels[i, 0]])
+
+    def train_data(self):
+        config = self.config
+        vocabulary_size = config.vocabulary_size
+        token_embeddings_file = config.token_embeddings_file
+
+        vocabulary = self.read_data()
+        print('Data size', len(vocabulary))
+
+        data, count, dictionary, reverse_dictionary = self.build_dataset(vocabulary,
+                                                                         vocabulary_size)
+        del vocabulary  # Hint to reduce memory.
+        print('Most common words (+UNK)', count[:5])
+        print('Sample data', data[:10], [reverse_dictionary[i] for i in data[:10]])
+
+        self.save_token_and_count(count, reverse_dictionary)
+
+        self.test_batch(data, reverse_dictionary)
+
+        final_embeddings = self.build_and_run_model(data, reverse_dictionary)
 
         self.plot_with_labels(final_embeddings, reverse_dictionary, os.path.join(config.output_path, 'tsne.png'))
 
@@ -290,15 +302,10 @@ def main():
 
     config = argparser.parse_args()
 
-    batch_size = config.batch_size
     embedding_size = config.embedding_size
     skip_window = config.skip_window
     num_skips = config.num_skips
     vocabulary_size = config.vocabulary_size
-    valid_size = config.valid_size
-    valid_window = vocabulary_size
-    train_file = config.train_file
-    num_steps = config.num_steps
 
     path_of_config = "{}.dim-{}.vocab-{}.sw-{}.ns-{}".format(config.name, embedding_size, vocabulary_size, skip_window,
                                                              num_skips)
