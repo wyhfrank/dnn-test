@@ -24,6 +24,7 @@ import math
 import os
 import random
 import csv
+import configargparse
 import zipfile
 from copy import deepcopy
 
@@ -278,7 +279,7 @@ class Word2Vec():
                   "Setting it to {real_vocab}.".format(real_vocab=correct_vocab_size, conf_vocab=vocabulary_size))
             self.config.vocabulary_size = correct_vocab_size
 
-        del vocabulary  # Hint to reduce memory.
+        del vocabulary  # Hint: to reduce memory.
         print('Most common words (+UNK)', count[:5])
         print('Sample data', data[:10], [reverse_dictionary[i] for i in data[:10]])
 
@@ -300,9 +301,10 @@ class Word2Vec():
 
 
 def main():
-    argparser = argparse.ArgumentParser(description="Create vector embedding for source code tokens.")
+    argparser = configargparse.ArgumentParser(description="Create vector embedding for source code tokens.",
+                                              default_config_files=["./config/config.default.yml"])
 
-    argparser.add_argument("mode", type=str, choices=["train", "vocab"],
+    argparser.add_argument("--mode", type=str, choices=["train", "vocab"],
                            help=("One of {train|vocab}, to "
                                  "indicate what you want the model to do. "
                                  "vocab: get the correct vocabulary size of the corpora."))

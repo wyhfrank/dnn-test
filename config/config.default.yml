@@ -1,0 +1,5 @@
+mode: train
+vocabulary_size: 118
+embedding_size: 500
+train_file: ./data/token-vocabulary/all-tokens-in-clone.txt
+name: all-clone
